@@ -97,6 +97,35 @@ PySpark provides the Spark runtime through its Python package; a separate
 multi-node Spark installation is not needed for this local workflow. On Windows,
 use a supported JDK and the matching Hadoop Windows binary for filesystem operations.
 
+### Troubleshooting `JAVA_GATEWAY_EXITED`
+
+This error means PySpark could not start its Java process. In the same PowerShell
+window you will use to run the application, point `JAVA_HOME` at the JDK
+installation directory (not its `bin` folder), and put that JDK first on `PATH`:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+java -version
+Test-Path "$env:JAVA_HOME\bin\java.exe"
+```
+
+Use the actual JDK path installed on your computer. Then verify Spark starts
+before launching the dashboard:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from src.spark_session import create_spark_session; s=create_spark_session(); print(s.version); s.stop()"
+```
+
+If this command fails, check that the JDK is installed, `JAVA_HOME` points to its
+root directory, and the project's virtual environment has the requirements
+installed. Start Streamlit with that same environment so it uses the same
+Python/PySpark installation:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run dashboard\app.py
+```
+
 ## Run the workflow
 
 From the project root:
@@ -126,7 +155,7 @@ the holdout predictions, saves the best-model predictions, and generates
 Run the dashboard after a successful training run:
 
 ```powershell
-streamlit run dashboard\app.py
+.\.venv\Scripts\python.exe -m streamlit run dashboard\app.py
 ```
 
 The dashboard loads the saved dataset, metrics, predictions, and model pipeline.
