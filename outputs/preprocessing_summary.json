@@ -1,0 +1,53 @@
+{
+  "rows_before_cleaning": 12330,
+  "rows_after_cleaning": 12205,
+  "columns": 18,
+  "column_names": [
+    "administrative",
+    "administrative_duration",
+    "informational",
+    "informational_duration",
+    "product_related",
+    "product_related_duration",
+    "bounce_rates",
+    "exit_rates",
+    "page_values",
+    "special_day",
+    "month",
+    "operating_systems",
+    "browser",
+    "region",
+    "traffic_type",
+    "visitor_type",
+    "weekend",
+    "purchase"
+  ],
+  "null_counts": {
+    "administrative": 0,
+    "administrative_duration": 0,
+    "informational": 0,
+    "informational_duration": 0,
+    "product_related": 0,
+    "product_related_duration": 0,
+    "bounce_rates": 0,
+    "exit_rates": 0,
+    "page_values": 0,
+    "special_day": 0,
+    "month": 0,
+    "operating_systems": 0,
+    "browser": 0,
+    "region": 0,
+    "traffic_type": 0,
+    "visitor_type": 0,
+    "weekend": 0,
+    "purchase": 0
+  },
+  "class_distribution": {
+    "1.0": 1908,
+    "0.0": 10297
+  },
+  "train_rows": 9837,
+  "test_rows": 2368,
+  "train_ratio": 0.8,
+  "random_seed": 42
+}

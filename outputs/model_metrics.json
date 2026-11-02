@@ -1,0 +1,36 @@
+{
+  "dataset": "UCI Online Shoppers Purchasing Intention Dataset",
+  "test_rows": 2368,
+  "positive_label": 1,
+  "best_model": "Gradient-Boosted Trees",
+  "selection_metric": "F1-score for the purchase class; ROC-AUC and accuracy break ties",
+  "models": {
+    "Logistic Regression": {
+      "accuracy": 0.8796452702702703,
+      "precision": 0.7045454545454546,
+      "recall": 0.3473389355742297,
+      "f1": 0.4652908067542213,
+      "roc_auc": 0.889575820382853
+    },
+    "Gradient-Boosted Trees": {
+      "accuracy": 0.9054054054054054,
+      "precision": 0.7254237288135593,
+      "recall": 0.5994397759103641,
+      "f1": 0.656441717791411,
+      "roc_auc": 0.9338052476087401
+    }
+  },
+  "metric_explanations": {
+    "accuracy": "Share of all test sessions whose purchase status was classified correctly.",
+    "precision": "Share of sessions predicted as purchases that were actual purchases.",
+    "recall": "Share of actual purchase sessions that the model correctly identified.",
+    "f1": "Harmonic mean of purchase precision and recall.",
+    "roc_auc": "Ability to rank purchase sessions above non-purchase sessions across thresholds."
+  },
+  "artifacts": {
+    "confusion_matrix": "confusion_matrix.png",
+    "roc_curve": "roc_curve.png",
+    "model_comparison": "model_comparison.png",
+    "actual_vs_predicted": "actual_vs_predicted.png"
+  }
+}
