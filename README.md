@@ -164,11 +164,13 @@ across decision thresholds. The run's actual values are written to
 
 ## Dashboard
 
-- Full-dataset session and actual purchase KPIs; holdout predictions and model accuracy.
+- Interactive month, visitor type, visit day, and actual-outcome filters update session
+  KPIs, purchase analysis, segmentation, and matching holdout predictions.
 - Purchase/no-purchase distribution and conversion by browsing activity, derived
   session duration, visitor type, or month.
 - Model metric comparison, confusion matrix, ROC curve, and actual/predicted charts.
-- Searchable holdout prediction table and CSV download.
+- Searchable holdout predictions with probability and correctness filters; download
+  the currently filtered results as CSV.
 - Optional single-session inference through the saved best Spark pipeline.
 
 The source does not include age or previous purchase count, so age-group and

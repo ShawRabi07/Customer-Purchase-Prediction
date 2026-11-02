@@ -91,6 +91,11 @@ except (FileNotFoundError, pd.errors.ParserError, json.JSONDecodeError) as error
 
 customers = _add_behavior_groups(customers)
 predictions = prediction_results.copy()
+predictions["weekend"] = (
+    predictions["weekend"].astype(str).str.strip().str.lower().map(
+        {"true": "True", "false": "False", "1": "True", "0": "False"}
+    )
+)
 best_model_name = model_metrics["best_model"]
 best_metrics = model_metrics["models"][best_model_name]
 
@@ -102,23 +107,82 @@ st.caption(
 )
 st.markdown(f"Dataset source: [{UCI_DATASET_PAGE}]({UCI_DATASET_PAGE})")
 
-total_sessions = len(customers)
-total_purchases = int((customers["purchase"] == 1).sum())
+with st.sidebar:
+    st.header("Explore sessions")
+    available_months = [
+        month
+        for month in [
+            "Jan", "Feb", "Mar", "Apr", "May", "June",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ]
+        if month in customers["month"].astype(str).unique()
+    ]
+    selected_months = st.multiselect(
+        "Month",
+        available_months,
+        default=available_months,
+        help="Filter the dataset and matching holdout sessions by month.",
+    )
+    available_visitors = sorted(customers["visitor_type"].dropna().astype(str).unique())
+    selected_visitors = st.multiselect(
+        "Visitor type",
+        available_visitors,
+        default=available_visitors,
+    )
+    selected_weekend = st.selectbox(
+        "Visit day",
+        ["All days", "Weekend", "Weekday"],
+    )
+    selected_outcomes = st.multiselect(
+        "Actual outcome",
+        ["Purchase", "No purchase"],
+        default=["Purchase", "No purchase"],
+    )
+
+filtered_customers = customers[
+    customers["month"].astype(str).isin(selected_months)
+    & customers["visitor_type"].astype(str).isin(selected_visitors)
+    & customers["purchase_status"].isin(selected_outcomes)
+]
+filtered_predictions = predictions[
+    predictions["month"].astype(str).isin(selected_months)
+    & predictions["visitor_type"].astype(str).isin(selected_visitors)
+    & predictions["actual_purchase"].map(
+        {1: "Purchase", 0: "No purchase", True: "Purchase", False: "No purchase"}
+    ).isin(selected_outcomes)
+]
+if selected_weekend != "All days":
+    weekend_value = "True" if selected_weekend == "Weekend" else "False"
+    filtered_customers = filtered_customers[
+        filtered_customers["weekend"].astype(str) == weekend_value
+    ]
+    filtered_predictions = filtered_predictions[
+        filtered_predictions["weekend"].astype(str) == weekend_value
+    ]
+
+total_sessions = len(filtered_customers)
+total_purchases = int((filtered_customers["purchase"] == 1).sum())
 total_non_purchases = total_sessions - total_purchases
-holdout_predicted_purchases = int((predictions["predicted_purchase"] == 1).sum())
+holdout_predicted_purchases = int(
+    (filtered_predictions["predicted_purchase"] == 1).sum()
+)
 conversion_rate = total_purchases / total_sessions if total_sessions else 0
 
 kpi_columns = st.columns(6)
 kpis = [
-    ("Total sessions", f"{total_sessions:,}"),
+    ("Filtered sessions", f"{total_sessions:,}"),
     ("Actual purchases", f"{total_purchases:,}"),
     ("No purchases", f"{total_non_purchases:,}"),
     ("Actual conversion", f"{conversion_rate:.1%}"),
-    ("Holdout predicted purchases", f"{holdout_predicted_purchases:,}"),
-    ("Holdout model accuracy", f"{best_metrics['accuracy']:.1%}"),
+    ("Filtered holdout predictions", f"{holdout_predicted_purchases:,}"),
+    ("Overall holdout accuracy", f"{best_metrics['accuracy']:.1%}"),
 ]
 for column, (label, value) in zip(kpi_columns, kpis):
     column.metric(label, value)
+st.caption(
+    f"Showing {total_sessions:,} of {len(customers):,} dataset sessions and "
+    f"{len(filtered_predictions):,} of {len(predictions):,} matching holdout predictions."
+)
 
 overview, segments, performance, predictions_tab, inference = st.tabs(
     ["Purchase analysis", "Customer segmentation", "Model performance", "Predictions", "Try a prediction"]
@@ -126,16 +190,36 @@ overview, segments, performance, predictions_tab, inference = st.tabs(
 
 with overview:
     st.subheader("Observed purchase outcomes")
-    left, right = st.columns(2)
-    outcome_counts = customers["purchase_status"].value_counts().rename_axis("Outcome").reset_index(name="Sessions")
-    left.plotly_chart(
-        px.pie(outcome_counts, names="Outcome", values="Sessions", hole=0.45, title="Purchase vs no purchase"),
-        use_container_width=True,
-    )
-    right.plotly_chart(
-        px.bar(outcome_counts, x="Outcome", y="Sessions", color="Outcome", title="Session outcome counts"),
-        use_container_width=True,
-    )
+    if filtered_customers.empty:
+        st.info("No sessions match these filters. Adjust the selections in the sidebar.")
+    else:
+        left, right = st.columns(2)
+        outcome_counts = (
+            filtered_customers["purchase_status"]
+            .value_counts()
+            .rename_axis("Outcome")
+            .reset_index(name="Sessions")
+        )
+        left.plotly_chart(
+            px.pie(
+                outcome_counts,
+                names="Outcome",
+                values="Sessions",
+                hole=0.45,
+                title="Purchase vs no purchase",
+            ),
+            use_container_width=True,
+        )
+        right.plotly_chart(
+            px.bar(
+                outcome_counts,
+                x="Outcome",
+                y="Sessions",
+                color="Outcome",
+                title="Session outcome counts",
+            ),
+            use_container_width=True,
+        )
     st.info(
         "Age-group and past-purchase charts are not available: those fields are not in "
         "the source. `VisitorType` is shown as a new/returning-visitor descriptor, not "
@@ -155,27 +239,36 @@ with segments:
         "Month": "month",
     }[selected_group]
     grouped = (
-        customers.groupby(group_column, observed=False)["purchase"]
+        filtered_customers.groupby(group_column, observed=False)["purchase"]
         .agg(sessions="size", purchases="sum", conversion_rate="mean")
         .reset_index()
         .rename(columns={group_column: "Segment"})
     )
-    left, right = st.columns(2)
-    left.plotly_chart(
-        px.bar(grouped, x="Segment", y="sessions", color="Segment", title="Sessions per segment"),
-        use_container_width=True,
-    )
-    right.plotly_chart(
-        px.bar(
-            grouped,
-            x="Segment",
-            y="conversion_rate",
-            color="Segment",
-            title="Observed purchase conversion rate",
-            labels={"conversion_rate": "Conversion rate"},
-        ),
-        use_container_width=True,
-    )
+    if grouped.empty:
+        st.info("No sessions match these filters. Adjust the selections in the sidebar.")
+    else:
+        left, right = st.columns(2)
+        left.plotly_chart(
+            px.bar(
+                grouped,
+                x="Segment",
+                y="sessions",
+                color="Segment",
+                title="Sessions per segment",
+            ),
+            use_container_width=True,
+        )
+        right.plotly_chart(
+            px.bar(
+                grouped,
+                x="Segment",
+                y="conversion_rate",
+                color="Segment",
+                title="Observed purchase conversion rate",
+                labels={"conversion_rate": "Conversion rate"},
+            ),
+            use_container_width=True,
+        )
     st.caption(
         "Session duration is derived as the sum of the three page-category duration fields. "
         "Browsing activity uses ProductRelated page views. Visitor type is not purchase history."
@@ -218,24 +311,63 @@ with performance:
 
 with predictions_tab:
     st.subheader("Holdout prediction results")
-    correct_count = int(predictions["correct_prediction"].astype(bool).sum())
-    incorrect_count = len(predictions) - correct_count
-    st.write(f"Correct: **{correct_count:,}** | Incorrect: **{incorrect_count:,}**")
-    st.plotly_chart(
-        px.histogram(
-            predictions,
-            x="actual_purchase",
-            color="predicted_purchase",
-            barmode="group",
-            title="Actual versus predicted outcomes",
-            labels={"actual_purchase": "Actual purchase", "predicted_purchase": "Predicted purchase"},
-        ),
-        use_container_width=True,
+    search_term = st.text_input("Search session ID", placeholder="e.g. session-001237")
+    minimum_probability = st.slider(
+        "Minimum predicted purchase probability",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.0,
+        step=0.05,
+        format="%.0f%%",
     )
-    st.dataframe(predictions, use_container_width=True, hide_index=True)
+    correctness = st.multiselect(
+        "Prediction result",
+        ["Correct", "Incorrect"],
+        default=["Correct", "Incorrect"],
+    )
+    visible_predictions = filtered_predictions[
+        filtered_predictions["purchase_probability"] >= minimum_probability
+    ]
+    if search_term.strip():
+        visible_predictions = visible_predictions[
+            visible_predictions["customer_id"].astype(str).str.contains(
+                search_term.strip(), case=False, na=False
+            )
+        ]
+    correct_mask = visible_predictions["correct_prediction"].astype(bool)
+    correctness_mask = pd.Series(False, index=visible_predictions.index)
+    if "Correct" in correctness:
+        correctness_mask |= correct_mask
+    if "Incorrect" in correctness:
+        correctness_mask |= ~correct_mask
+    visible_predictions = visible_predictions[correctness_mask]
+    correct_count = int(visible_predictions["correct_prediction"].astype(bool).sum())
+    incorrect_count = len(visible_predictions) - correct_count
+    st.write(
+        f"Matching sessions: **{len(visible_predictions):,}** | "
+        f"Correct: **{correct_count:,}** | Incorrect: **{incorrect_count:,}**"
+    )
+    if visible_predictions.empty:
+        st.info("No holdout predictions match these filters.")
+    else:
+        st.plotly_chart(
+            px.histogram(
+                visible_predictions,
+                x="actual_purchase",
+                color="predicted_purchase",
+                barmode="group",
+                title="Actual versus predicted outcomes",
+                labels={
+                    "actual_purchase": "Actual purchase",
+                    "predicted_purchase": "Predicted purchase",
+                },
+            ),
+            use_container_width=True,
+        )
+        st.dataframe(visible_predictions, use_container_width=True, hide_index=True)
     st.download_button(
-        "Download holdout predictions",
-        data=predictions.to_csv(index=False).encode("utf-8"),
+        "Download filtered holdout predictions",
+        data=visible_predictions.to_csv(index=False).encode("utf-8"),
         file_name="purchase_predictions.csv",
         mime="text/csv",
     )
